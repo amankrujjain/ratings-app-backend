@@ -1,6 +1,7 @@
 const User = require("../model/user.model");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+const QRCode = require("qrcode");
+const fs = require("fs");
+const path = require("path");
 
 // Create a new user (Admin only)
 const createUser = async (req, res) => {
@@ -13,9 +14,9 @@ const createUser = async (req, res) => {
     const newUser = new User({ employeeName, employeeId, department, designation, contactNo, bloodGroup, joiningDate, role, password });
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully", user: newUser });
+    return res.status(201).json({ message: "User created successfully", user: newUser });
   } catch (error) {
-    res.status(500).json({ message: "Error creating user", error });
+    return res.status(500).json({ message: "Error creating user", error });
   }
 };
 
@@ -23,21 +24,21 @@ const createUser = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().populate("role");
-    res.status(200).json(users);
+    return res.status(200).json(users);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching users", error });
+    return res.status(500).json({ message: "Error fetching users", error });
   }
 };
 
 // Get user by ID (Protected)
 const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate("role");
+    const user = await User.findById(req.params.id).populate("role").select('-password');
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json(user);
+    return res.status(200).json(user);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching user", error });
+    return res.status(500).json({ message: "Error fetching user", error });
   }
 };
 
@@ -50,9 +51,9 @@ const updateUser = async (req, res) => {
 
     if (!updatedUser) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json({ message: "User updated successfully", user: updatedUser });
+    return res.status(200).json({ message: "User updated successfully", user: updatedUser });
   } catch (error) {
-    res.status(500).json({ message: "Error updating user", error });
+    return res.status(500).json({ message: "Error updating user", error });
   }
 };
 
@@ -62,10 +63,49 @@ const deleteUser = async (req, res) => {
     const deletedUser = await User.findByIdAndDelete(req.params.id);
     if (!deletedUser) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json({ message: "User deleted successfully" });
+    return res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting user", error });
+    return res.status(500).json({ message: "Error deleting user", error });
   }
 };
 
-module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser };
+const generateQRCode = async (req, res) => {
+    try {
+        const { id } = req.params; // Employee ID
+    
+        if (!id) {
+          return res.status(400).json({ message: "Employee ID is required" });
+        }
+    
+        // Fetch employee details from DB
+        const employee = await User.findById(id);
+        if (!employee) {
+          return res.status(404).json({ message: "Employee not found" });
+        }
+    
+        const employeeName = employee.employeeName.replace(/\s+/g, "_"); // Replace spaces with underscores
+        const profileURL = `https://yourfrontend.com/profile/${id}`;
+    
+        // Define folder path and file path
+        const qrFolderPath = path.join(__dirname, "../uploads/qr", employeeName);
+        const qrFilePath = path.join(qrFolderPath, `${id}.png`);
+    
+        // Ensure directory exists
+        if (!fs.existsSync(qrFolderPath)) {
+          fs.mkdirSync(qrFolderPath, { recursive: true });
+        }
+    
+        // Generate and save QR code
+        await QRCode.toFile(qrFilePath, profileURL);
+    
+        return res.status(200).json({
+          message: "QR Code generated successfully",
+          qrCodePath: `/uploads/qr/${employeeName}/${id}.png`,
+          profileURL,
+        });
+      } catch (error) {
+        return res.status(500).json({ message: "Internal Server Error", error: error.message });
+      }
+  };
+
+module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, generateQRCode };
