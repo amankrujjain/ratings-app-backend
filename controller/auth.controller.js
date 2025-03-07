@@ -81,7 +81,7 @@ exports.login = async (req, res) => {
     // Store tokens in HTTP-only cookies
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
-      secure: true, // Set to true in production
+      secure: false, // Set to true in production
       sameSite: "strict",
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
@@ -93,7 +93,7 @@ exports.login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    res.json({ message: "Login successful" });
+    return res.status(200).json({ message: "Login successful", user: user });
   } catch (error) {
     res.status(500).json({ message: "Internal Server Error", error: error.message });
   }

@@ -13,6 +13,7 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
   password: { type: String, required: true },
+  averageRating: { type: Number, default: 0 },
   refreshToken: { type: String },
 }, { timestamps: true });
 

@@ -5,6 +5,8 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 
 const authRoutes = require("./routes/auth.routes");
+const roleRoutes = require('./routes/role.routes');
+const userRoutes = require('./routes/user.routes');
 
 dotenv.config();
 
@@ -15,6 +17,8 @@ app.use(cookieParser());
 app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
 
 app.use("/api/auth", authRoutes);
+app.use('/api', roleRoutes);
+app.use('/api',userRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
