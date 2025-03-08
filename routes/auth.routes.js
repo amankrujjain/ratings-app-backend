@@ -1,6 +1,6 @@
 const express = require("express");
 const multer = require("multer");
-const { signup, login, refreshToken, logout } = require("../controller/auth.controller");
+const { signup, login, refreshToken, logout, forgotPassword, verifyOTP, resetPassword } = require("../controller/auth.controller");
 const {createRole} = require('../controller/role.controller')
 const { authenticateToken, authorizeRoles } = require("../middleware/auth.middleware");
 
@@ -18,5 +18,8 @@ router.post("/login", login);
 router.post("/refresh-token", refreshToken);
 router.post("/logout", logout);
 router.post("/role", authenticateToken, authorizeRoles("admin"), createRole);
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-otp", verifyOTP);
+router.post("/reset-password", resetPassword);
 
 module.exports = router;

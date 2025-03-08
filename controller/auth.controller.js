@@ -1,7 +1,11 @@
 const User = require("../model/user.model");
 const Role = require("../model/role.model");
+const OTP = require("../model/otp.model");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+const { sendOTP } = require("../utils/email");
+
 
 const generateAccessToken = (user) => {
   return jwt.sign(
@@ -40,6 +44,9 @@ exports.signup = async (req, res) => {
     if (existingUser)
       return res.status(400).json({ message: "Employee ID already exists" });
 
+    const salt = await bcrypt.genSalt(10);
+    const hashPassword = await bcrypt.hash(password, salt);
+
     const newUser = new User({
       employeeName,
       employeeId,
@@ -50,10 +57,11 @@ exports.signup = async (req, res) => {
       joiningDate,
       employeePhoto,
       role,
-      password,
+      password : hashPassword,
     });
 
     await newUser.save();
+
     return res.status(201).json({ message: "User created successfully" });
   } catch (error) {
     return res.status(500).json({
@@ -140,5 +148,70 @@ exports.logout = async (req, res) => {
     return res.json({ message: "Logged out successfully" });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Generate 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+
+    // Save OTP in MongoDB (It will expire in 5 minutes)
+    await OTP.create({ email, otp });
+
+    // Send OTP via email
+    await sendOTP(email, otp);
+
+    res.status(200).json({ message: "OTP sent to your email" });
+  } catch (error) {
+    res.status(500).json({ message: "Error sending OTP", error: error.message });
+  }
+};
+
+// Step 2: Verify OTP
+exports.verifyOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const otpRecord = await OTP.findOne({ email, otp });
+
+    if (!otpRecord) return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    // OTP is valid, allow password reset
+    res.status(200).json({ message: "OTP verified. Proceed to reset password." });
+  } catch (error) {
+    res.status(500).json({ message: "Error verifying OTP", error: error.message });
+  }
+};
+
+// Step 3: Reset Password
+exports.resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    const otpRecord = await OTP.findOne({ email, otp });
+
+    if (!otpRecord) return res.status(400).json({ message: "Invalid or expired OTP" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Hash new password and update user
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    // Delete OTP after successful password reset
+    await OTP.deleteOne({ email });
+
+    const subject = "Password Reset Successful";
+    const message = `Hello ${user.employeeName},\n\nYour password has been successfully reset.\nIf you did not request this change, please contact support immediately.\n\nBest regards,\nYour Company Name`;
+
+    await sendEmail(email, subject, message);
+
+    res.status(200).json({ message: "Password reset successful" });
+  } catch (error) {
+    res.status(500).json({ message: "Error resetting password", error: error.message });
   }
 };
