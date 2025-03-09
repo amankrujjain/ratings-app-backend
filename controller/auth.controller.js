@@ -2,9 +2,9 @@ const User = require("../model/user.model");
 const Role = require("../model/role.model");
 const OTP = require("../model/otp.model");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const { sendOTP } = require("../utils/email");
+const { sendOTP, sendEmail } = require("../utils/email");
 
 
 const generateAccessToken = (user) => {
@@ -25,6 +25,7 @@ exports.signup = async (req, res) => {
   try {
     const {
       employeeName,
+      email, // Added email since it's in the schema
       employeeId,
       department,
       designation,
@@ -34,36 +35,47 @@ exports.signup = async (req, res) => {
       role,
       password,
     } = req.body;
+
     const employeePhoto = req.file ? req.file.path : null;
 
+    // Validate role
     const existingRole = await Role.findById(role);
-    if (!existingRole)
+    if (!existingRole) {
       return res.status(400).json({ message: "Invalid role ID" });
+    }
 
+    // Check for existing user
     const existingUser = await User.findOne({ employeeId });
-    if (existingUser)
+    if (existingUser) {
       return res.status(400).json({ message: "Employee ID already exists" });
+    }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashPassword = await bcrypt.hash(password, salt);
+    // Check for existing email (optional, if you want unique emails)
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
+    // Create new user - let pre-save hook handle password hashing
     const newUser = new User({
       employeeName,
+      email,
       employeeId,
       department,
       designation,
       contactNo,
       bloodGroup,
-      joiningDate,
+      joiningDate: new Date(joiningDate), // Ensure proper date format
       employeePhoto,
       role,
-      password : hashPassword,
+      password, // Pass plain password, pre-save hook will hash it
     });
 
     await newUser.save();
 
     return res.status(201).json({ message: "User created successfully" });
   } catch (error) {
+    console.error("Signup Error:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       error: error.message,
@@ -74,57 +86,98 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { employeeId, password } = req.body;
-    const user = await User.findOne({ employeeId }).populate("role");
 
-    if (!user || !(await user.comparePassword(password))) {
+    // Fetch user with password (since select: false is set)
+    const user = await User.findOne({ employeeId })
+      .select("+password +refreshToken")
+      .populate("role");
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // Compare password
+    const isPasswordMatch = await user.comparePassword(password);
+    if (!isPasswordMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
+    // Update refresh token in DB
     user.refreshToken = refreshToken;
     await user.save();
 
-    // Store tokens in HTTP-only cookies
+    // Set cookies
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
-      secure: false, // Set to true in production
+      secure: process.env.NODE_ENV === "production", // Secure in production
       sameSite: "strict",
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true, // Set to true in production
+      secure: process.env.NODE_ENV === "production", // Secure in production
       sameSite: "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    return res.status(200).json({ message: "Login successful", user: user });
+    // Remove sensitive data from response
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    delete userResponse.refreshToken;
+
+    return res.status(200).json({ message: "Login successful", user: userResponse });
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    console.error("Login Error:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   }
 };
 
 exports.refreshToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) return res.status(401).json({ message: "Refresh token missing" });
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Refresh token missing" });
+    }
 
     const user = await User.findOne({ refreshToken }).populate("role");
-    if (!user) return res.status(403).json({ message: "Invalid Refresh Token" });
+    if (!user) {
+      return res.status(403).json({ message: "Invalid Refresh Token" });
+    }
 
-    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, decoded) => {
-      if (err) return res.status(403).json({ message: "Invalid Refresh Token" });
+    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
+      if (err) {
+        return res.status(403).json({ message: "Invalid or Expired Refresh Token" });
+      }
 
+      // Generate new access and refresh tokens
       const newAccessToken = generateAccessToken(user);
+      const newRefreshToken = generateRefreshToken(user);
 
+      // Update user's refresh token in DB (Rotating refresh token approach)
+      user.refreshToken = newRefreshToken;
+      await user.save();
+
+      // Set cookies
       res.cookie("accessToken", newAccessToken, {
         httpOnly: true,
         secure: true,
         sameSite: "strict",
         maxAge: 15 * 60 * 1000, // 15 minutes
+      });
+
+      res.cookie("refreshToken", newRefreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
       res.json({ message: "Token refreshed" });
@@ -133,7 +186,6 @@ exports.refreshToken = async (req, res) => {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
-
 exports.logout = async (req, res) => {
   try {
     const user = await User.findOne({ refreshToken: req.cookies.refreshToken });
@@ -205,10 +257,8 @@ exports.resetPassword = async (req, res) => {
     // Delete OTP after successful password reset
     await OTP.deleteOne({ email });
 
-    const subject = "Password Reset Successful";
-    const message = `Hello ${user.employeeName},\n\nYour password has been successfully reset.\nIf you did not request this change, please contact support immediately.\n\nBest regards,\nYour Company Name`;
 
-    await sendEmail(email, subject, message);
+    await sendEmail(email);
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {

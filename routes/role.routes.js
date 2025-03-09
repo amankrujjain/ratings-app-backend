@@ -10,7 +10,7 @@ const {
 const router = express.Router();
 
 // Protected Routes (Require Valid Token)
-router.get("/all-roles", verifyToken, getRoles);          // Get all roles
+router.get("/all-roles", getRoles);          // Get all roles
 router.get("/get-role/:id", verifyToken, getRoleById);    // Get role by ID
 router.put("/update-role/:id", verifyToken, updateRole);     // Update role
 router.delete("/delete/:id", verifyToken, deleteRole);  // Delete role

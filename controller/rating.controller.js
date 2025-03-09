@@ -5,7 +5,7 @@ const User = require("../model/user.model");
 const submitRating = async (req, res) => {
   try {
     const { employeeId } = req.params;
-    const { customerName,customerEmail, customerPhone, rating, feedback } = req.body;
+    const { customerName, customerEmail, customerPhone, rating, feedback, latitude, longitude } = req.body;
 
     // Validate Employee
     const employee = await User.findById(employeeId);
@@ -13,8 +13,38 @@ const submitRating = async (req, res) => {
       return res.status(404).json({ message: "Employee not found" });
     }
 
+    // Validate required fields
+    if (!customerName || !customerEmail || !customerPhone || !rating) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Default shop coordinates (could be stored in DB or env vars)
+    const shopLatitude = process.env.SHOP_LATITUDE || 12.9716; // Example: latitude of shop
+    const shopLongitude = process.env.SHOP_LONGITUDE || 77.5946; // Example: longitude of shop
+    const MAX_DISTANCE = 10; // 10 meters
+
+    // Calculate inRange using Haversine formula if coordinates are provided
+    let inRange = false;
+    if (latitude && longitude) {
+      const distance = calculateDistance(
+        parseFloat(latitude),
+        parseFloat(longitude),
+        parseFloat(shopLatitude),
+        parseFloat(shopLongitude)
+      );
+      inRange = distance <= MAX_DISTANCE;
+    }
+
     // Save Rating
-    const newRating = new Rating({ employee: employeeId, customerName,customerEmail, customerPhone, rating, feedback });
+    const newRating = new Rating({
+      employee: employeeId,
+      customerName,
+      customerEmail,
+      customerPhone,
+      rating,
+      feedback,
+      inRange, // Set based on distance calculation or default false
+    });
     await newRating.save();
 
     // Calculate & Update Employee Average Rating
@@ -24,12 +54,27 @@ const submitRating = async (req, res) => {
     employee.averageRating = parseFloat(averageRating.toFixed(1)); // Store rounded value
     await employee.save();
 
-    return res.status(201).json({ message: "Rating submitted successfully" });
+    return res.status(201).json({ message: "Rating submitted successfully" ,range: inRange});
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };
 
+// Haversine formula to calculate distance between two points (in meters)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3; // Earth's radius in meters
+  const φ1 = (lat1 * Math.PI) / 180; // Convert to radians
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c; // Distance in meters
+}
 // Get Ratings of an Employee
 const getEmployeeRatings = async (req, res) => {
   try {
@@ -42,7 +87,42 @@ const getEmployeeRatings = async (req, res) => {
   }
 };
 
+const editRating = async (req, res) => {
+  try {
+    const { ratingId } = req.params;
+    const { rating, comment } = req.body;
+
+    const updatedRating = await Rating.findByIdAndUpdate(
+      ratingId,
+      { rating, comment },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedRating) return res.status(404).json({ message: "Rating not found" });
+
+    return res.status(200).json({ message: "Rating updated successfully", updatedRating });
+  } catch (error) {
+    return res.status(500).json({ message: "Error updating rating", error: error.message });
+  }
+};
+
+// Delete Rating (Admin Only)
+const deleteRating = async (req, res) => {
+  try {
+    const { ratingId } = req.params;
+
+    const deletedRating = await Rating.findByIdAndDelete(ratingId);
+    if (!deletedRating) return res.status(404).json({ message: "Rating not found" });
+
+    return res.status(200).json({ message: "Rating deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Error deleting rating", error: error.message });
+  }
+};
+
 module.exports = {
     submitRating,
-    getEmployeeRatings
+    getEmployeeRatings,
+    editRating,
+    deleteRating
 }

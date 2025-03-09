@@ -6,6 +6,7 @@ const ratingSchema = new mongoose.Schema({
   customerEmail: {type: String, required: true},
   customerPhone:{type: Number, required: true},
   avgRating:{type: Number},
+  inRange:{type: Boolean, default: false},
   rating: { type: Number, required: true, min: 1, max: 5 },
   feedback: { type: String },
 }, { timestamps: true });
