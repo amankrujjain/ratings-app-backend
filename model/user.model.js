@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema({
   joiningDate: { type: Date, required: true },
   employeePhoto: { type: String }, // Stores image path
   isActive: { type: Boolean, default: true },
+  isLogin:{type: Boolean, default: false},
   role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
   password: { type: String, required: true, select: false }, // Added select: false for security
   averageRating: { type: Number, default: 0 },

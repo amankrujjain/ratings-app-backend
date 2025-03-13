@@ -86,8 +86,6 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { employeeId, password } = req.body;
-
-    // Fetch user with password (since select: false is set)
     const user = await User.findOne({ employeeId })
       .select("+password +refreshToken")
       .populate("role");
@@ -96,41 +94,42 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: "User not found" });
     }
 
-    // Compare password
     const isPasswordMatch = await user.comparePassword(password);
     if (!isPasswordMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Generate tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Update refresh token in DB
     user.refreshToken = refreshToken;
+    user.isLogin = true; // Set isLogin
     await user.save();
 
-    // Set cookies
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Secure in production
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // Secure in production
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    // Remove sensitive data from response
     const userResponse = user.toObject();
     delete userResponse.password;
     delete userResponse.refreshToken;
 
-    return res.status(200).json({ message: "Login successful", user: userResponse });
+    // ✅ Include accessToken in the response
+    return res.status(200).json({
+      message: "Login successful",
+      user: userResponse,
+      accessToken,  // 🔥 Ensure this is sent to frontend
+    });
   } catch (error) {
     console.error("Login Error:", error);
     return res.status(500).json({
@@ -140,57 +139,12 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.refreshToken = async (req, res) => {
-  try {
-    const refreshToken = req.cookies.refreshToken;
-    if (!refreshToken) {
-      return res.status(401).json({ message: "Refresh token missing" });
-    }
-
-    const user = await User.findOne({ refreshToken }).populate("role");
-    if (!user) {
-      return res.status(403).json({ message: "Invalid Refresh Token" });
-    }
-
-    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, async (err, decoded) => {
-      if (err) {
-        return res.status(403).json({ message: "Invalid or Expired Refresh Token" });
-      }
-
-      // Generate new access and refresh tokens
-      const newAccessToken = generateAccessToken(user);
-      const newRefreshToken = generateRefreshToken(user);
-
-      // Update user's refresh token in DB (Rotating refresh token approach)
-      user.refreshToken = newRefreshToken;
-      await user.save();
-
-      // Set cookies
-      res.cookie("accessToken", newAccessToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-        maxAge: 15 * 60 * 1000, // 15 minutes
-      });
-
-      res.cookie("refreshToken", newRefreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      });
-
-      res.json({ message: "Token refreshed" });
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
-  }
-};
 exports.logout = async (req, res) => {
   try {
     const user = await User.findOne({ refreshToken: req.cookies.refreshToken });
     if (user) {
       user.refreshToken = null;
+      user.isLogin = false; // Clear isLogin
       await user.save();
     }
 
@@ -199,6 +153,65 @@ exports.logout = async (req, res) => {
 
     return res.json({ message: "Logged out successfully" });
   } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+exports.refreshToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+    console.log("Refresh token received:", refreshToken);
+
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Refresh token missing" });
+    }
+
+    // Verify refresh token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+      console.log("Invalid refresh token:", err.message);
+      return res.status(403).json({ message: "Invalid refresh token" });
+    }
+
+    // Find the user by ID from the decoded token
+    const user = await User.findById(decoded.userId).populate("role");
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(403).json({ message: "Invalid refresh token" });
+    }
+
+    console.log("User found:", user.employeeId);
+
+    // Generate new tokens
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    // Update user's refresh token in DB
+    user.refreshToken = newRefreshToken;
+    await user.save();
+    console.log("New refresh token saved:", newRefreshToken);
+
+    // Set new cookies
+    res.cookie("accessToken", newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 15 minutes
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Send response with the new access token
+    res.json({ message: "Token refreshed", accessToken: newAccessToken });
+  } catch (error) {
+    console.error("Refresh token error:", error.message);
     return res.status(500).json({ message: "Internal Server Error", error: error.message });
   }
 };

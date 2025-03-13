@@ -79,7 +79,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 const getEmployeeRatings = async (req, res) => {
   try {
     const { employeeId } = req.params;
-    const ratings = await Rating.find({ employee: employeeId }).sort({ createdAt: -1 });
+    const ratings = await Rating.find({ employee: employeeId }).sort({ createdAt: -1 }).populate("employee");
 
     return res.status(200).json(ratings);
   } catch (error) {
