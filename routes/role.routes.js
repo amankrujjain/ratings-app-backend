@@ -1,5 +1,5 @@
 const express = require("express");
-const { verifyToken } = require("../middleware/auth.middleware");
+const { authenticateToken, authorizeRoles } = require("../middleware/auth.middleware");
 const { 
     getRoles, 
     getRoleById, 
@@ -10,9 +10,9 @@ const {
 const router = express.Router();
 
 // Protected Routes (Require Valid Token)
-router.get("/all-roles", getRoles);          // Get all roles
-router.get("/get-role/:id", verifyToken, getRoleById);    // Get role by ID
-router.put("/update-role/:id", verifyToken, updateRole);     // Update role
-router.delete("/delete/:id", verifyToken, deleteRole);  // Delete role
+router.get("/all-roles", authenticateToken, authorizeRoles("admin", "subadmin"), getRoles);          // Get all roles
+router.get("/get-role/:id",authenticateToken, authorizeRoles("admin", "subadmin"), getRoleById);    // Get role by ID
+router.put("/update-role/:id",authenticateToken, authorizeRoles("admin", "subadmin"),  updateRole);     // Update role
+router.delete("/delete/:id",authenticateToken, authorizeRoles("admin", "subadmin"),  deleteRole);  // Delete role
 
 module.exports = router;
