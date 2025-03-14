@@ -75,6 +75,32 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
   return R * c; // Distance in meters
 }
+
+const allRatings = async (req, res) => {
+  try {
+    const ratings = await Rating.find().sort({ createdAt: -1 }).populate("employee");
+
+    if (ratings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No ratings available",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: ratings,
+    });
+  } catch (error) {
+    console.error("Error received while getting ratings:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
+  }
+};
+
 // Get Ratings of an Employee
 const getEmployeeRatings = async (req, res) => {
   try {
@@ -124,5 +150,6 @@ module.exports = {
     submitRating,
     getEmployeeRatings,
     editRating,
-    deleteRating
+    deleteRating,
+    allRatings
 }
