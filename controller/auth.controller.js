@@ -8,6 +8,7 @@ const { sendOTP, sendEmail } = require("../utils/email");
 
 
 const generateAccessToken = (user) => {
+  console.log("Inside generate access token", user)
   return jwt.sign(
     { userId: user._id, role: user.role.name },
     process.env.ACCESS_TOKEN_SECRET,
@@ -88,7 +89,9 @@ exports.login = async (req, res) => {
     const { employeeId, password } = req.body;
     const user = await User.findOne({ employeeId })
       .select("+password +refreshToken")
-      .populate("role");
+      .populate({ path: "role", select: "name" });
+
+      console.log("user data", user);
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
