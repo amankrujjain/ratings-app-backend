@@ -4,7 +4,8 @@ const OTP = require("../model/otp.model");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const { sendOTP, sendEmail } = require("../utils/email");
+const { sendOTP } = require("../utils/email");
+const sendEmail = require("../utils/passwordConfirmation")
 
 
 const generateAccessToken = (user) => {
@@ -260,7 +261,7 @@ exports.resetPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Hash new password and update user
-    user.password = await bcrypt.hash(newPassword, 10);
+    user.password = newPassword;
     await user.save();
 
     // Delete OTP after successful password reset
@@ -271,6 +272,7 @@ exports.resetPassword = async (req, res) => {
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
+    console.log("Error while resetting password", error)
     res.status(500).json({ message: "Error resetting password", error: error.message });
   }
 };

@@ -273,7 +273,7 @@ const sendEmail = async (email) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log("Password reset confirmation email sent to:", to);
+    console.log("Password reset confirmation email sent to:",email);
   } catch (error) {
     console.error("Error sending email:", error.message);
   }
