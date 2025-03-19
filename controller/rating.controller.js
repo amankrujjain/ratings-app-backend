@@ -113,6 +113,17 @@ const getEmployeeRatings = async (req, res) => {
   }
 };
 
+const getEmployeeRatingsID = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const ratings = await Rating.find({ employee: employeeId }).sort({ createdAt: -1 }).populate("employee");
+
+    return res.status(200).json(ratings);
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 const editRating = async (req, res) => {
   try {
     const { ratingId } = req.params;
@@ -151,5 +162,6 @@ module.exports = {
     getEmployeeRatings,
     editRating,
     deleteRating,
-    allRatings
+    allRatings,
+    getEmployeeRatingsID
 }

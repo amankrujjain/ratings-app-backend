@@ -7,6 +7,8 @@ const router = express.Router();
 
 router.post("/submit/:employeeId", submitRating);
 router.get("/employee/:employeeId", getEmployeeRatings);
+router.get("/employee-ratings/:employeeId",authenticateToken,authorizeRoles("sales","manager"), getEmployeeRatings);
+
 router.get("/all-ratings",authenticateToken, authorizeRoles("admin", "subadmin"), allRatings );
 
 // Update a rating (Admin only)
