@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   isLogin:{type: Boolean, default: false},
   role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", required: true },
+  reviewCode: { type: String, unique: true },
   password: { type: String, required: true, select: false }, // Added select: false for security
   averageRating: { type: Number, default: 0 },
   refreshToken: { type: String, select: false }, // Added select: false for security

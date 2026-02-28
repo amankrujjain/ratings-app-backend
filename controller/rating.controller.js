@@ -1,6 +1,7 @@
 const Rating = require("../model/rating.model");
 const User = require("../model/user.model");
 
+
 // Submit Rating
 const submitRating = async (req, res) => {
   try {

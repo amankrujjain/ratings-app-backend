@@ -10,10 +10,16 @@ const authRoutes = require("./routes/auth.routes");
 const roleRoutes = require('./routes/role.routes');
 const userRoutes = require('./routes/user.routes');
 const ratingRoutes = require("./routes/ratings.routes");
+const http = require('http');
+
+const setupWebSocket = require("./utils/websocket");
 
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app);
+
+const { notifyEmployee, broadcastToAdmins } = setupWebSocket(server);
 
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -36,3 +42,5 @@ mongoose.connect(process.env.MONGO_URI)
   .catch(err => console.log("MongoDB connection error:", err));
 
 app.listen(5000, () => console.log("Server running on port 5000"));
+
+module.exports = { notifyEmployee, broadcastToAdmins };

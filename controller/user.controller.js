@@ -2,10 +2,16 @@ const User = require("../model/user.model");
 const QRCode = require("qrcode");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
+
+function generateReviewCode() {
+  return crypto.randomBytes(4).toString("hex").toUpperCase();
+}
 
 // Create a new user (Admin only)
 const createUser = async (req, res) => {
   try {
+    const reviewCode = generateReviewCode();
     const {
       employeeName,
       email,
@@ -37,7 +43,8 @@ const createUser = async (req, res) => {
       joiningDate,
       employeePhoto, // Add the photo path
       role,
-      password
+      password,
+      reviewCode, 
     });
 
     await newUser.save();
@@ -147,44 +154,44 @@ const deleteUser = async (req, res) => {
 };
 
 
-const generateQRCode = async (req, res) => {
-    try {
-        const { id } = req.params; // Employee ID
+// const generateQRCode = async (req, res) => {
+//     try {
+//         const { id } = req.params; // Employee ID
     
-        if (!id) {
-          return res.status(400).json({ message: "Employee ID is required" });
-        }
+//         if (!id) {
+//           return res.status(400).json({ message: "Employee ID is required" });
+//         }
     
-        // Fetch employee details from DB
-        const employee = await User.findById(id);
-        if (!employee) {
-          return res.status(404).json({ message: "Employee not found" });
-        }
+//         // Fetch employee details from DB
+//         const employee = await User.findById(id);
+//         if (!employee) {
+//           return res.status(404).json({ message: "Employee not found" });
+//         }
     
-        const employeeName = employee.employeeName.replace(/\s+/g, "_"); // Replace spaces with underscores
-        const profileURL = `https://yourfrontend.com/profile/${id}`;
+//         const employeeName = employee.employeeName.replace(/\s+/g, "_"); // Replace spaces with underscores
+//         const profileURL = `https://yourfrontend.com/profile/${id}`;
     
-        // Define folder path and file path
-        const qrFolderPath = path.join(__dirname, "../uploads/qr", employeeName);
-        const qrFilePath = path.join(qrFolderPath, `${id}.png`);
+//         // Define folder path and file path
+//         const qrFolderPath = path.join(__dirname, "../uploads/qr", employeeName);
+//         const qrFilePath = path.join(qrFolderPath, `${id}.png`);
     
-        // Ensure directory exists
-        if (!fs.existsSync(qrFolderPath)) {
-          fs.mkdirSync(qrFolderPath, { recursive: true });
-        }
+//         // Ensure directory exists
+//         if (!fs.existsSync(qrFolderPath)) {
+//           fs.mkdirSync(qrFolderPath, { recursive: true });
+//         }
     
-        // Generate and save QR code
-        await QRCode.toFile(qrFilePath, profileURL);
+//         // Generate and save QR code
+//         await QRCode.toFile(qrFilePath, profileURL);
     
-        return res.status(200).json({
-          message: "QR Code generated successfully",
-          qrCodePath: `/uploads/qr/${employeeName}/${id}.png`,
-          profileURL,
-        });
-      } catch (error) {
-        return res.status(500).json({ message: "Internal Server Error", error: error.message });
-      }
-  };
+//         return res.status(200).json({
+//           message: "QR Code generated successfully",
+//           qrCodePath: `/uploads/qr/${employeeName}/${id}.png`,
+//           profileURL,
+//         });
+//       } catch (error) {
+//         return res.status(500).json({ message: "Internal Server Error", error: error.message });
+//       }
+//   };
   // Get logged-in user's profile
 const getProfile = async (req, res) => {
   try {
@@ -199,4 +206,4 @@ const getProfile = async (req, res) => {
   }
 };
 
-module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, generateQRCode, getProfile };
+module.exports = { createUser, getAllUsers, getUserById, updateUser, deleteUser, getProfile };

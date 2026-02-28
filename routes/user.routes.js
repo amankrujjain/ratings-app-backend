@@ -39,7 +39,7 @@ router.get("/all-user", authenticateToken, authorizeRoles("admin", "subadmin"), 
 router.get("/get-user/:id", authenticateToken, getUserById);
 router.put("/update-user/:id", authenticateToken, authorizeRoles("admin", "subadmin"), upload.single('employeePhoto'), updateUser);
 router.delete("/delete-user/:id", authenticateToken, authorizeRoles("admin", "subadmin"), deleteUser);
-router.get("/generate-qr/:employeeId", generateQRCode);
+// router.get("/generate-qr/:employeeId", generateQRCode);
 router.get("/profile", authenticateToken, getProfile);
 
 module.exports = router;
