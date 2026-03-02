@@ -1,87 +1,88 @@
 const Rating = require("../model/rating.model");
 const User = require("../model/user.model");
+// controller-only implementation; repository/service layers removed
 
 
 // Submit Rating
-const submitRating = async (req, res) => {
-  try {
-    const { employeeId } = req.params;
-    const { customerName, customerEmail, customerPhone, rating, feedback, latitude, longitude } = req.body;
+// const submitRating = async (req, res) => {
+//   try {
+//     const { employeeId } = req.params;
+//     const { customerName, customerEmail, customerPhone, rating, feedback, latitude, longitude } = req.body;
 
-    // Validate Employee
-    const employee = await User.findById(employeeId);
-    if (!employee) {
-      return res.status(404).json({ message: "Employee not found" });
-    }
+//     // Validate Employee
+//     const employee = await User.findById(employeeId);
+//     if (!employee) {
+//       return res.status(404).json({ message: "Employee not found" });
+//     }
 
-    // Validate required fields
-    if (!customerName || !customerEmail || !customerPhone || !rating) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
+//     // Validate required fields
+//     if (!customerName || !customerEmail || !customerPhone || !rating) {
+//       return res.status(400).json({ message: "Missing required fields" });
+//     }
 
-    // Default shop coordinates (could be stored in DB or env vars)
-    const shopLatitude = process.env.SHOP_LATITUDE || 12.9716; // Example: latitude of shop
-    const shopLongitude = process.env.SHOP_LONGITUDE || 77.5946; // Example: longitude of shop
-    const MAX_DISTANCE = 10; // 10 meters
+//     // Default shop coordinates (could be stored in DB or env vars)
+//     const shopLatitude = process.env.SHOP_LATITUDE || 12.9716; // Example: latitude of shop
+//     const shopLongitude = process.env.SHOP_LONGITUDE || 77.5946; // Example: longitude of shop
+//     const MAX_DISTANCE = 10; // 10 meters
 
-    // Calculate inRange using Haversine formula if coordinates are provided
-    let inRange = false;
-    if (latitude && longitude) {
-      const distance = calculateDistance(
-        parseFloat(latitude),
-        parseFloat(longitude),
-        parseFloat(shopLatitude),
-        parseFloat(shopLongitude)
-      );
-      inRange = distance <= MAX_DISTANCE;
-    }
+//     // Calculate inRange using Haversine formula if coordinates are provided
+//     let inRange = false;
+//     if (latitude && longitude) {
+//       const distance = calculateDistance(
+//         parseFloat(latitude),
+//         parseFloat(longitude),
+//         parseFloat(shopLatitude),
+//         parseFloat(shopLongitude)
+//       );
+//       inRange = distance <= MAX_DISTANCE;
+//     }
 
-    // Save Rating
-    const newRating = new Rating({
-      employee: employeeId,
-      customerName,
-      customerEmail,
-      customerPhone,
-      rating,
-      feedback,
-      inRange, // Set based on distance calculation or default false
-    });
-    await newRating.save();
+//     // Save Rating
+//     const newRating = new Rating({
+//       employee: employeeId,
+//       customerName,
+//       customerEmail,
+//       customerPhone,
+//       rating,
+//       feedback,
+//       inRange, // Set based on distance calculation or default false
+//     });
+//     await newRating.save();
 
-    // Calculate & Update Employee Average Rating
-    const ratings = await Rating.find({ employee: employeeId });
-    const averageRating = ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length;
+//     // Calculate & Update Employee Average Rating
+//     const ratings = await Rating.find({ employee: employeeId });
+//     const averageRating = ratings.reduce((acc, r) => acc + r.rating, 0) / ratings.length;
 
-    employee.averageRating = parseFloat(averageRating.toFixed(1)); // Store rounded value
-    await employee.save();
+//     employee.averageRating = parseFloat(averageRating.toFixed(1)); // Store rounded value
+//     await employee.save();
 
-    return res.status(201).json({ message: "Rating submitted successfully" ,range: inRange});
-  } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
-  }
-};
+//     return res.status(201).json({ message: "Rating submitted successfully" ,range: inRange});
+//   } catch (error) {
+//     return res.status(500).json({ message: "Internal Server Error", error: error.message });
+//   }
+// };
 
 // Haversine formula to calculate distance between two points (in meters)
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Earth's radius in meters
-  const φ1 = (lat1 * Math.PI) / 180; // Convert to radians
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+// function calculateDistance(lat1, lon1, lat2, lon2) {
+//   const R = 6371e3; // Earth's radius in meters
+//   const φ1 = (lat1 * Math.PI) / 180; // Convert to radians
+//   const φ2 = (lat2 * Math.PI) / 180;
+//   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+//   const Δλ = ((lon2 - lon1) * Math.PI) / 180;
 
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+//   const a =
+//     Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+//     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+//   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c; // Distance in meters
-}
+//   return R * c; // Distance in meters
+// }
 
 const allRatings = async (req, res) => {
   try {
     const ratings = await Rating.find().sort({ createdAt: -1 }).populate("employee");
 
-    if (ratings.length === 0) {
+    if (!ratings) {
       return res.status(404).json({
         success: false,
         message: "No ratings available",
@@ -93,12 +94,28 @@ const allRatings = async (req, res) => {
       data: ratings,
     });
   } catch (error) {
-    console.error("Error received while getting ratings:", error);
+    console.log("Error received while getting ratings:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
       error: error.message,
     });
+  }
+};
+
+// Get Ratings by id (used for public fetch via route)
+const getRatingsById = async (req, res) => {
+  try {
+    const { ratingId } = req.params;
+    const rating = await Rating.findById(ratingId).populate("employee");
+
+    if (!rating) {
+      return res.status(404).json({ success: false, message: "Rating not found" });
+    }
+
+    return res.status(200).json({ success: true, data: rating });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -158,11 +175,43 @@ const deleteRating = async (req, res) => {
   }
 };
 
+const recalculateAverage = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+
+    const ratings = await Rating.find({ employee: employeeId });
+
+    if (ratings.length === 0) {
+      return res.status(404).json({ message: "No ratings found for employee" });
+    }
+
+    const total = ratings.reduce((acc, r) => acc + r.rating, 0);
+    const average = total / ratings.length;
+
+    await User.findByIdAndUpdate(employeeId, {
+      averageRating: parseFloat(average.toFixed(1))
+    });
+
+    return res.status(200).json({
+      message: "Average recalculated successfully",
+      averageRating: parseFloat(average.toFixed(1))
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error recalculating average",
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
-    submitRating,
+    // submitRating,
+    getRatingsById,
     getEmployeeRatings,
     editRating,
     deleteRating,
     allRatings,
-    getEmployeeRatingsID
+    getEmployeeRatingsID,
+    recalculateAverage
 }

@@ -10,6 +10,11 @@ const authRoutes = require("./routes/auth.routes");
 const roleRoutes = require('./routes/role.routes');
 const userRoutes = require('./routes/user.routes');
 const ratingRoutes = require("./routes/ratings.routes");
+const reviewRoutes = require("./routes/review.routes");
+const gmbRoutes = require("./routes/gmb.routes");
+const incentiveRoutes = require("./routes/incentive.routes");
+require("./cron/googleReviewCron");
+
 const http = require('http');
 
 const setupWebSocket = require("./utils/websocket");
@@ -36,6 +41,9 @@ app.use("/api/auth", authRoutes);
 app.use('/api', roleRoutes);
 app.use('/api',userRoutes);
 app.use("/api/ratings", ratingRoutes);
+// app.use("/review", reviewRoutes);
+app.use("/gmb", gmbRoutes);
+app.use("/incentive", incentiveRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))

@@ -3,11 +3,12 @@ const Role = require("../model/role.model");
 const createRole = async (req, res) => {
     try {
       const { name } = req.body;
+      const lowerCaseName = name.toLowerCase();
   
-      const existingRole = await Role.findOne({ name });
+      const existingRole = await Role.findOne({ name: lowerCaseName });
       if (existingRole) return res.status(400).json({ message: "Role already exists" });
   
-      const newRole = new Role({ name });
+      const newRole = new Role({ name: lowerCaseName });
       await newRole.save();
   
       return res.status(201).json({ message: "Role created successfully", role: newRole });

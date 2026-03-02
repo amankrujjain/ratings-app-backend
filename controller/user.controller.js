@@ -11,7 +11,6 @@ function generateReviewCode() {
 // Create a new user (Admin only)
 const createUser = async (req, res) => {
   try {
-    const reviewCode = generateReviewCode();
     const {
       employeeName,
       email,
@@ -25,12 +24,15 @@ const createUser = async (req, res) => {
       password
     } = req.body;
 
-    // Check for existing user
     const existingUser = await User.findOne({ employeeId });
-    if (existingUser) return res.status(400).json({ message: "User already exists" });
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
-    // Get file path if uploaded
     const employeePhoto = req.file ? req.file.path : null;
+
+    // ✅ Generate Permanent Review Code
+    const reviewCode = generateReviewCode();
 
     const newUser = new User({
       employeeName,
@@ -41,25 +43,44 @@ const createUser = async (req, res) => {
       contactNo,
       bloodGroup,
       joiningDate,
-      employeePhoto, // Add the photo path
+      employeePhoto,
       role,
       password,
-      reviewCode, 
+      reviewCode
     });
 
     await newUser.save();
 
-    return res.status(201).json({ message: "User created successfully", user: newUser });
+    return res.status(201).json({
+      message: "User created successfully",
+      user: newUser
+    });
+
   } catch (error) {
     console.log("Error while creating user", error);
-    return res.status(500).json({ message: "Error creating user", error: error.message });
+    return res.status(500).json({
+      message: "Error creating user",
+      error: error.message
+    });
   }
 };
 
-// Get all users (Protected: Admin only)
+// Get all users (Protected: Admin only) - exclude users with role "admin"
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().populate("role").sort({employeeId: 1});
+    // find the admin role id so we can filter it out
+    const Role = require("../model/role.model");
+    const adminRole = await Role.findOne({ name: "admin" });
+
+    const query = {};
+    if (adminRole) {
+      query.role = { $ne: adminRole._id };
+    }
+
+    const users = await User.find(query)
+      .populate("role")
+      .sort({ employeeId: 1 });
+
     return res.status(200).json(users);
   } catch (error) {
     return res.status(500).json({ message: "Error fetching users", error });
