@@ -1,12 +1,5 @@
 const User = require("../model/user.model");
-const QRCode = require("qrcode");
-const fs = require("fs");
-const path = require("path");
 const crypto = require("crypto");
-
-function generateReviewCode() {
-  return crypto.randomBytes(4).toString("hex").toUpperCase();
-}
 
 // Create a new user (Admin only)
 const createUser = async (req, res) => {
@@ -31,9 +24,6 @@ const createUser = async (req, res) => {
 
     const employeePhoto = req.file ? req.file.path : null;
 
-    // ✅ Generate Permanent Review Code
-    const reviewCode = generateReviewCode();
-
     const newUser = new User({
       employeeName,
       email,
@@ -46,7 +36,6 @@ const createUser = async (req, res) => {
       employeePhoto,
       role,
       password,
-      reviewCode
     });
 
     await newUser.save();
@@ -235,46 +224,6 @@ const deleteUser = async (req, res) => {
     return res.status(500).json({ message: "Error deleting user", error });
   }
 };
-
-
-// const generateQRCode = async (req, res) => {
-//     try {
-//         const { id } = req.params; // Employee ID
-    
-//         if (!id) {
-//           return res.status(400).json({ message: "Employee ID is required" });
-//         }
-    
-//         // Fetch employee details from DB
-//         const employee = await User.findById(id);
-//         if (!employee) {
-//           return res.status(404).json({ message: "Employee not found" });
-//         }
-    
-//         const employeeName = employee.employeeName.replace(/\s+/g, "_"); // Replace spaces with underscores
-//         const profileURL = `https://yourfrontend.com/profile/${id}`;
-    
-//         // Define folder path and file path
-//         const qrFolderPath = path.join(__dirname, "../uploads/qr", employeeName);
-//         const qrFilePath = path.join(qrFolderPath, `${id}.png`);
-    
-//         // Ensure directory exists
-//         if (!fs.existsSync(qrFolderPath)) {
-//           fs.mkdirSync(qrFolderPath, { recursive: true });
-//         }
-    
-//         // Generate and save QR code
-//         await QRCode.toFile(qrFilePath, profileURL);
-    
-//         return res.status(200).json({
-//           message: "QR Code generated successfully",
-//           qrCodePath: `/uploads/qr/${employeeName}/${id}.png`,
-//           profileURL,
-//         });
-//       } catch (error) {
-//         return res.status(500).json({ message: "Internal Server Error", error: error.message });
-//       }
-//   };
   // Get logged-in user's profile
 const getProfile = async (req, res) => {
   try {

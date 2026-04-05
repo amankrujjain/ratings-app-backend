@@ -281,4 +281,169 @@ const exportMonthlyIncentive = async (req, res) => {
   }
 };
 
-module.exports = { getMonthlyIncentive, getMonthlyIncentiveSummary, exportMonthlyIncentive };
+const getYearlyIncentiveSummary = async (req, res) => {
+  try {
+    const { year } = req.query;
+
+    if (!year) {
+      return res.status(400).json({ message: "Year is required" });
+    }
+
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const Role = require("../model/role.model");
+    const adminRole = await Role.findOne({ name: "admin" });
+    const matchStage = { role: { $exists: true } };
+    if (adminRole) {
+      matchStage.role = { $ne: adminRole._id };
+    }
+
+    const employees = await User.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "ratings",
+          let: { empId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$employee", "$$empId"] },
+                    { $gte: ["$createdAt", startDate] },
+                    { $lte: ["$createdAt", endDate] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "yearlyRatings",
+        },
+      },
+      {
+        $addFields: {
+          totalReviews: { $size: "$yearlyRatings" },
+          averageRating: {
+            $cond: [
+              { $gt: [{ $size: "$yearlyRatings" }, 0] },
+              { $avg: "$yearlyRatings.rating" },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          employeeId: "$_id",
+          employeeName: "$employeeName",
+          totalReviews: 1,
+          averageRating: { $round: ["$averageRating", 2] },
+        },
+      },
+    ]);
+
+    const finalData = employees.map((item) => {
+      let incentivePerReview = 0;
+      if (item.averageRating >= 4 && item.averageRating < 4.5) incentivePerReview = 50;
+      else if (item.averageRating >= 4.5) incentivePerReview = 100;
+      return { ...item, incentivePerReview, totalIncentive: item.totalReviews * incentivePerReview };
+    });
+
+    res.status(200).json(finalData);
+
+  } catch (error) {
+    console.error("Yearly Summary Error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const exportYearlyIncentive = async (req, res) => {
+  try {
+    const { year } = req.query;
+
+    if (!year) {
+      return res.status(400).json({ message: "Year is required" });
+    }
+
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    const Role = require("../model/role.model");
+    const adminRole = await Role.findOne({ name: "admin" });
+    const matchStage = {};
+    if (adminRole) matchStage.role = { $ne: adminRole._id };
+
+    const employees = await User.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "ratings",
+          let: { empId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$employee", "$$empId"] },
+                    { $gte: ["$createdAt", startDate] },
+                    { $lte: ["$createdAt", endDate] },
+                  ],
+                },
+              },
+            },
+          ],
+          as: "yearlyRatings",
+        },
+      },
+      {
+        $addFields: {
+          totalReviews: { $size: "$yearlyRatings" },
+          averageRating: {
+            $cond: [
+              { $gt: [{ $size: "$yearlyRatings" }, 0] },
+              { $avg: "$yearlyRatings.rating" },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          employeeName: 1,
+          totalReviews: 1,
+          averageRating: { $round: ["$averageRating", 2] },
+        },
+      },
+    ]);
+
+    const finalData = employees.map((item) => {
+      let incentivePerReview = 0;
+      if (item.averageRating >= 4 && item.averageRating < 4.5) incentivePerReview = 50;
+      else if (item.averageRating >= 4.5) incentivePerReview = 100;
+      return {
+        Employee: item.employeeName,
+        "Total Reviews": item.totalReviews,
+        "Average Rating": item.averageRating,
+        "₹ Per Review": incentivePerReview,
+        "Total Incentive": item.totalReviews * incentivePerReview,
+      };
+    });
+
+    const XLSX = require("xlsx");
+    const worksheet = XLSX.utils.json_to_sheet(finalData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Yearly Incentives");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Disposition", `attachment; filename=Incentives_${year}.xlsx`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buffer);
+
+  } catch (error) {
+    console.error("Yearly Export Error:", error);
+    res.status(500).json({ message: "Export failed" });
+  }
+};
+
+module.exports = { getMonthlyIncentive, getMonthlyIncentiveSummary, exportMonthlyIncentive, getYearlyIncentiveSummary, exportYearlyIncentive };
