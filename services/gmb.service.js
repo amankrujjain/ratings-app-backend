@@ -49,6 +49,78 @@ const syncGMBReviews = async () => {
         reviewerName: "Rakesh Singh",
         rating: 5,
         comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_003",
+        reviewerName: "Rakesh Singh",
+        rating: 5,
+        comment: "Very Unprofessional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_004",
+        reviewerName: "Rakesh sirivastaava",
+        rating: 5,
+        comment: "Very professional staff1 #AB12CD34"
+      },
+      {
+        reviewId: "gmb_005",
+        reviewerName: "Resh Singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_006",
+        reviewerName: "Rk Singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_007",
+        reviewerName: "Rakesh suresh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_08",
+        reviewerName: "ramadhir singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_009",
+        reviewerName: "ruli Singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_0010",
+        reviewerName: "kumhar Singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_0011",
+        reviewerName: "arjun Singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_0012",
+        reviewerName: "ramika Singh",
+        rating: 5,
+        comment: "Very professional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_0013",
+        reviewerName: "Sample Singh",
+        rating: 1,
+        comment: "Very unprofessional staff #AB12CD34"
+      },
+      {
+        reviewId: "gmb_0014",
+        reviewerName: "Sample3 Singh",
+        rating: 3,
+        comment: "Very bad staff #AB12CD34"
       }
     ];
 

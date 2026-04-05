@@ -68,22 +68,84 @@ const createUser = async (req, res) => {
 // Get all users (Protected: Admin only) - exclude users with role "admin"
 const getAllUsers = async (req, res) => {
   try {
-    // find the admin role id so we can filter it out
     const Role = require("../model/role.model");
+
+    // ===== Query Params =====
+    let {
+      page = 1,
+      limit = 10,
+      sortBy = "employeeId",
+      order = "asc",
+      search = ""
+    } = req.query;
+
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    const skip = (page - 1) * limit;
+
+    // ===== Exclude Admin Role =====
     const adminRole = await Role.findOne({ name: "admin" });
 
     const query = {};
+
     if (adminRole) {
       query.role = { $ne: adminRole._id };
     }
 
+    // ===== Search Logic =====
+    if (search) {
+      query.$or = [
+        { employeeName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { employeeId: { $regex: search, $options: "i" } },
+        { department: { $regex: search, $options: "i" } },
+        { designation: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    // ===== Allowed Sort Fields (Security) =====
+    const allowedSortFields = [
+      "employeeName",
+      "employeeId",
+      "email",
+      "department",
+      "designation",
+      "joiningDate",
+      "averageRating",
+      "createdAt"
+    ];
+
+    const sortField = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "employeeId";
+
+    const sortOrder = order === "desc" ? -1 : 1;
+
+    // ===== Fetch Data =====
     const users = await User.find(query)
       .populate("role")
-      .sort({ employeeId: 1 });
+      .sort({ [sortField]: sortOrder })
+      .skip(skip)
+      .limit(limit);
 
-    return res.status(200).json(users);
+    const totalUsers = await User.countDocuments(query);
+
+    return res.status(200).json({
+      data: users,
+      pagination: {
+        total: totalUsers,
+        page,
+        limit,
+        totalPages: Math.ceil(totalUsers / limit)
+      }
+    });
+
   } catch (error) {
-    return res.status(500).json({ message: "Error fetching users", error });
+    return res.status(500).json({
+      message: "Error fetching users",
+      error: error.message
+    });
   }
 };
 

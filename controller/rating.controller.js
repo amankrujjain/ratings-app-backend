@@ -80,25 +80,73 @@ const User = require("../model/user.model");
 
 const allRatings = async (req, res) => {
   try {
-    const ratings = await Rating.find().sort({ createdAt: -1 }).populate("employee");
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      order = "desc",
+      search = ""
+    } = req.query;
 
-    if (!ratings) {
-      return res.status(404).json({
-        success: false,
-        message: "No ratings available",
-      });
+    const pageNumber = parseInt(page);
+    const pageSize = parseInt(limit);
+
+    const skip = (pageNumber - 1) * pageSize;
+
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    const allowedSortFields = ["customerName", "rating", "googleReviewId", "source", "createdAt"];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+
+    // Search condition
+    const searchQuery = {};
+
+    if (search) {
+      // First find employees whose name or employeeId match the search term
+      const matchingEmployees = await User.find({
+        $or: [
+          { employeeName: { $regex: search, $options: "i" } },
+          { employeeId: { $regex: search, $options: "i" } },
+        ]
+      }).select("_id");
+
+      const employeeIds = matchingEmployees.map((e) => e._id);
+
+      searchQuery.$or = [
+        { customerName: { $regex: search, $options: "i" } },
+        { feedback: { $regex: search, $options: "i" } },
+        { googleReviewId: { $regex: search, $options: "i" } },
+        { source: { $regex: search, $options: "i" } },
+        ...(employeeIds.length ? [{ employee: { $in: employeeIds } }] : []),
+      ];
     }
+
+    const totalRecords = await Rating.countDocuments(searchQuery);
+
+    const ratings = await Rating.find(searchQuery)
+      .populate("employee")
+      .sort({ [sortField]: sortOrder })
+      .skip(skip)
+      .limit(pageSize);
 
     return res.status(200).json({
       success: true,
       data: ratings,
+      pagination: {
+        totalRecords,
+        currentPage: pageNumber,
+        totalPages: Math.ceil(totalRecords / pageSize),
+        pageSize
+      }
     });
+
   } catch (error) {
     console.log("Error received while getting ratings:", error);
+
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
+      error: error.message
     });
   }
 };
@@ -119,15 +167,58 @@ const getRatingsById = async (req, res) => {
   }
 };
 
-// Get Ratings of an Employee
+// Get Ratings of an Employee (with pagination, search, sort)
 const getEmployeeRatings = async (req, res) => {
   try {
     const { employeeId } = req.params;
-    const ratings = await Rating.find({ employee: employeeId }).sort({ createdAt: -1 }).populate("employee");
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      order = "desc",
+      search = ""
+    } = req.query;
 
-    return res.status(200).json(ratings);
+    const pageNumber = parseInt(page);
+    const pageSize = parseInt(limit);
+    const skip = (pageNumber - 1) * pageSize;
+    const sortOrder = order === "asc" ? 1 : -1;
+
+    // Allowed sort fields to prevent injection
+    const allowedSortFields = ["customerName", "rating", "googleReviewId", "source", "createdAt"];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+
+    const baseFilter = { employee: employeeId };
+
+    if (search) {
+      baseFilter.$or = [
+        { customerName: { $regex: search, $options: "i" } },
+        { feedback: { $regex: search, $options: "i" } },
+        { googleReviewId: { $regex: search, $options: "i" } },
+        { source: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const totalRecords = await Rating.countDocuments(baseFilter);
+
+    const ratings = await Rating.find(baseFilter)
+      .populate("employee")
+      .sort({ [sortField]: sortOrder })
+      .skip(skip)
+      .limit(pageSize);
+
+    return res.status(200).json({
+      success: true,
+      data: ratings,
+      pagination: {
+        totalRecords,
+        currentPage: pageNumber,
+        totalPages: Math.ceil(totalRecords / pageSize),
+        pageSize
+      }
+    });
   } catch (error) {
-    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+    return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
   }
 };
 
@@ -206,12 +297,12 @@ const recalculateAverage = async (req, res) => {
 };
 
 module.exports = {
-    // submitRating,
-    getRatingsById,
-    getEmployeeRatings,
-    editRating,
-    deleteRating,
-    allRatings,
-    getEmployeeRatingsID,
-    recalculateAverage
+  // submitRating,
+  getRatingsById,
+  getEmployeeRatings,
+  editRating,
+  deleteRating,
+  allRatings,
+  getEmployeeRatingsID,
+  recalculateAverage
 }
