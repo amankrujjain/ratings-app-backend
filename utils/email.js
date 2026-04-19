@@ -11,11 +11,42 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-exports.sendOTP = async (email, otp) => {
+function getEmailContent(type, data) {
+  switch (type) {
+    case "otp":
+      return {
+        subject: "Password Reset OTP",
+        heading: "OTP Sent Successfully",
+        description: "Do not share this OTP! This OTP is system generated and can only be used once.",
+        boxLabel: "Your OTP",
+        boxValue: data.otp,
+      };
+    case "account_creation":
+      return {
+        subject: "Welcome — Your Account Has Been Created",
+        heading: "Welcome to the Team!",
+        description: `Hi <strong>${data.employeeName}</strong>, your account has been successfully created. You can connect with your System Administrator for your login password.`,
+        boxLabel: "Your Employee ID",
+        boxValue: data.employeeId,
+      };
+    default:
+      return {
+        subject: "Notification",
+        heading: "Notification",
+        description: data.description || "",
+        boxLabel: data.boxLabel || "",
+        boxValue: data.boxValue || "",
+      };
+  }
+}
+
+const sendEmail = async (type, email, data = {}) => {
+  const { subject, heading, description, boxLabel, boxValue } = getEmailContent(type, data);
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: "Password Reset OTP",
+    subject,
     html: `<html dir="ltr" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office">
   <head>
     <meta charset="UTF-8">
@@ -119,14 +150,14 @@ exports.sendOTP = async (email, otp) => {
                                           <tr>
                                             <td align="center" class="esd-block-text es-p10b">
                                               <h1 class="es-m-txt-c" style="font-size: 46px; line-height: 100%">
-                                                OTP Sent Successfully
+                                                ${heading}
                                               </h1>
                                             </td>
                                           </tr>
                                           <tr>
                                             <td align="center" class="esd-block-text es-p5t es-p5b es-p40r es-p40l es-m-p0r es-m-p0l">
                                               <p>
-                                                Do not share this OTP! This OTP is system generated and can only be used once.
+                                                ${description}
                                               </p>
                                             </td>
                                           </tr>
@@ -149,14 +180,14 @@ exports.sendOTP = async (email, otp) => {
                                           <tr>
                                             <td align="center" class="esd-block-text es-p20t es-p20r es-p20l">
                                               <h2 class="es-m-txt-c">
-                                                Your OTP
+                                                ${boxLabel}
                                               </h2>
                                             </td>
                                           </tr>
                                           <tr>
                                             <td align="center" esd-links-underline="none" class="esd-block-text es-p10t es-p20b es-p20r es-p20l">
                                               <h1 class="es-m-txt-c" style="color: #5c68e2">
-                                                <strong>${otp}</strong>
+                                                <strong>${boxValue}</strong>
                                               </h1>
                                             </td>
                                           </tr>
@@ -275,3 +306,13 @@ exports.sendOTP = async (email, otp) => {
 
   await transporter.sendMail(mailOptions);
 };
+
+const sendOTP = async (email, otp) => {
+  await sendEmail("otp", email, { otp });
+};
+
+const sendWelcomeEmail = async (email, { employeeName, employeeId }) => {
+  await sendEmail("account_creation", email, { employeeName, employeeId });
+};
+
+module.exports = { sendEmail, sendOTP, sendWelcomeEmail };

@@ -1,132 +1,101 @@
+const { google } = require("googleapis");
 const Rating = require("../model/rating.model");
 const User = require("../model/user.model");
+const GmbToken = require("../model/gmbToken.model");
+const { getOAuth2Client } = require("../controller/gmb.controller");
 
 /**
- * 🔁 Sync Google Business Reviews
- * Currently using dummy data.
- * Later replace dummy section with real Google API call.
+ * Fetch reviews from Google Business Profile API
  */
+const fetchGoogleReviews = async () => {
+  const token = await GmbToken.findOne();
+  if (!token || !token.accountId || !token.locationId) {
+    console.log("[GMB Sync] Not configured — token:", !!token, "accountId:", token?.accountId || "missing", "locationId:", token?.locationId || "missing");
+    return null;
+  }
 
+  console.log("[GMB Sync] Using account:", token.accountId, "location:", token.locationId);
+  console.log("[GMB Sync] Token expiry:", token.expiryDate ? new Date(token.expiryDate).toISOString() : "unknown");
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: token.accessToken,
+    refresh_token: token.refreshToken,
+    expiry_date: token.expiryDate,
+  });
+
+  // Auto-refresh tokens
+  oauth2Client.on("tokens", async (newTokens) => {
+    console.log("[GMB Sync] Token refreshed — new access_token:", newTokens.access_token ? "✅" : "❌");
+    if (newTokens.access_token) {
+      await GmbToken.findOneAndUpdate({}, {
+        accessToken: newTokens.access_token,
+        expiryDate: newTokens.expiry_date,
+      });
+    }
+  });
+
+  // The reviews endpoint uses the My Business API v4 via direct HTTP
+  // Google Business Profile API for reviews: accounts/{accountId}/locations/{locationId}/reviews
+  const allReviews = [];
+  let nextPageToken = null;
+
+  do {
+    const url = `https://mybusiness.googleapis.com/v4/${token.accountId}/${token.locationId}/reviews`;
+    console.log("[GMB Sync] Fetching reviews from:", url);
+    const params = { pageSize: 50 };
+    if (nextPageToken) params.pageToken = nextPageToken;
+
+    const response = await oauth2Client.request({ url, params });
+    console.log("[GMB Sync] API response status:", response.status, "reviews in page:", response.data.reviews?.length || 0);
+
+    if (response.data.reviews) {
+      allReviews.push(...response.data.reviews);
+    }
+
+    nextPageToken = response.data.nextPageToken;
+  } while (nextPageToken);
+
+  console.log("[GMB Sync] Total reviews fetched:", allReviews.length);
+
+  return allReviews.map((review) => ({
+    reviewId: review.reviewId,
+    reviewerName: review.reviewer?.displayName || "Anonymous",
+    rating: starRatingToNumber(review.starRating),
+    comment: review.comment || "",
+  }));
+};
+
+/**
+ * Convert Google's star rating string to number
+ */
+function starRatingToNumber(starRating) {
+  const map = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+  return map[starRating] || 0;
+}
+
+/**
+ * Sync Google Business Reviews
+ * Uses real API if connected, otherwise skips.
+ */
 const syncGMBReviews = async () => {
   try {
-
     console.log("🔄 Starting GMB Sync...");
 
-    // ============================================
-    // 🔴 REAL GOOGLE API CALL (COMMENTED)
-    // ============================================
-    /*
-    const axios = require("axios");
+    const reviews = await fetchGoogleReviews();
 
-    const response = await axios.get("GOOGLE_GMB_API_URL", {
-      headers: {
-        Authorization: `Bearer ${process.env.GMB_ACCESS_TOKEN}`
-      }
-    });
+    if (!reviews) {
+      console.log("⚠ No GMB connection — sync skipped");
+      return;
+    }
 
-    const reviews = response.data.reviews;
-    */
+    if (reviews.length === 0) {
+      console.log("ℹ No reviews found on Google");
+      return;
+    }
 
-    // ============================================
-    // 🟢 DUMMY DATA FOR NOW
-    // ============================================
+    console.log(`📥 Fetched ${reviews.length} reviews from Google`);
 
-    const reviews = [
-      {
-        reviewId: "gmb_001",
-        reviewerName: "Rahul Sharma",
-        rating: 5,
-        comment: "Amazing service by #AB12CD34"
-      },
-      {
-        reviewId: "gmb_002",
-        reviewerName: "Priya Verma",
-        rating: 4,
-        comment: "Good experience #EF56GH78"
-      },
-      {
-        reviewId: "gmb_003",
-        reviewerName: "Rakesh Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_003",
-        reviewerName: "Rakesh Singh",
-        rating: 5,
-        comment: "Very Unprofessional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_004",
-        reviewerName: "Rakesh sirivastaava",
-        rating: 5,
-        comment: "Very professional staff1 #AB12CD34"
-      },
-      {
-        reviewId: "gmb_005",
-        reviewerName: "Resh Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_006",
-        reviewerName: "Rk Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_007",
-        reviewerName: "Rakesh suresh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_08",
-        reviewerName: "ramadhir singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_009",
-        reviewerName: "ruli Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_0010",
-        reviewerName: "kumhar Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_0011",
-        reviewerName: "arjun Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_0012",
-        reviewerName: "ramika Singh",
-        rating: 5,
-        comment: "Very professional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_0013",
-        reviewerName: "Sample Singh",
-        rating: 1,
-        comment: "Very unprofessional staff #AB12CD34"
-      },
-      {
-        reviewId: "gmb_0014",
-        reviewerName: "Sample3 Singh",
-        rating: 3,
-        comment: "Very bad staff #AB12CD34"
-      }
-    ];
-
-    // ============================================
-    // PROCESS REVIEWS
-    // ============================================
 
     for (const review of reviews) {
 

@@ -1,5 +1,6 @@
 const User = require("../model/user.model");
 const crypto = require("crypto");
+const { sendWelcomeEmail } = require("../utils/email");
 
 // Create a new user (Admin only)
 const createUser = async (req, res) => {
@@ -39,6 +40,13 @@ const createUser = async (req, res) => {
     });
 
     await newUser.save();
+
+    // Send welcome email
+    if (email) {
+      sendWelcomeEmail(email, { employeeName, employeeId }).catch((err) =>
+        console.log("Failed to send welcome email:", err.message)
+      );
+    }
 
     return res.status(201).json({
       message: "User created successfully",

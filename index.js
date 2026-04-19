@@ -1,4 +1,6 @@
 const dotenv = require("dotenv");
+dotenv.config();
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
@@ -19,8 +21,6 @@ const http = require('http');
 
 const setupWebSocket = require("./utils/websocket");
 
-dotenv.config();
-
 const app = express();
 const server = http.createServer(app);
 
@@ -35,20 +35,25 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(express.json());
 app.use(cookieParser());
-app.use(cors({ credentials: true, origin: ["http://localhost:5173", "http://localhost:3000", "http://192.168.29.232:3000"] }));
+
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map(o => o.trim())
+  : ["http://localhost:5173", "http://localhost:3000", "http://192.168.29.232:3000"];
+app.use(cors({ credentials: true, origin: allowedOrigins }));
 
 app.use("/api/auth", authRoutes);
 app.use('/api', roleRoutes);
 app.use('/api',userRoutes);
 app.use("/api/ratings", ratingRoutes);
 // app.use("/review", reviewRoutes);
-app.use("/gmb", gmbRoutes);
+app.use("/api/gmb", gmbRoutes);
 app.use("/incentive", incentiveRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.log("MongoDB connection error:", err));
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 module.exports = { notifyEmployee, broadcastToAdmins };
