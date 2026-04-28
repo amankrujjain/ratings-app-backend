@@ -1,67 +1,71 @@
 const WebSocket = require('ws');
 
+// Singleton to allow importing WS functions from anywhere
+let _notifyEmployee = null;
+let _broadcastToAdmins = null;
+
 function setupWebSocket(server) {
   const wss = new WebSocket.Server({ server });
-
-  // Store connected clients
-  const clients = new Map(); // Key: clientId (employeeId, adminId, etc.), Value: { ws, role }
+  const clients = new Map();
 
   wss.on('connection', (ws, req) => {
-    console.log('New WebSocket connection established');
-
-    // Extract clientId and role from query params (e.g., ws://localhost:8080?clientId=123&role=employee)
     const url = new URL(req.url, `http://${req.headers.host}`);
     const clientId = url.searchParams.get('clientId');
-    const role = url.searchParams.get('role'); // Possible values: 'employee', 'admin', 'subadmin'
+    const role = url.searchParams.get('role');
 
     if (clientId && role) {
       clients.set(clientId, { ws, role });
-      console.log(`${role} ${clientId} connected`);
+      console.log(`[WS] ${role} ${clientId} connected. Total: ${clients.size}`);
     } else {
-      console.log('Connection rejected: Missing clientId or role');
       ws.close();
+      return;
     }
 
-    ws.on('message', (message) => {
-      console.log(`Received message: ${message}`);
-    });
-
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
     ws.on('close', () => {
-      if (clientId) {
-        clients.delete(clientId);
-        console.log(`${role} ${clientId} disconnected`);
-      }
+      clients.delete(clientId);
+      console.log(`[WS] ${role} ${clientId} disconnected. Total: ${clients.size}`);
     });
-
-    ws.on('error', (error) => {
-      console.error(`WebSocket error: ${error}`);
-    });
+    ws.on('error', (err) => console.error(`[WS] Error ${clientId}:`, err.message));
   });
 
-  // Notify a specific employee
+  // Ping every 30s to detect dead connections
+  const pingInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (!ws.isAlive) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+  wss.on('close', () => clearInterval(pingInterval));
+
   function notifyEmployee(employeeId, message) {
     const client = clients.get(employeeId);
-    if (client && client.role === 'employee' && client.ws.readyState === WebSocket.OPEN) {
+    if (client && client.ws.readyState === WebSocket.OPEN) {
       client.ws.send(JSON.stringify(message));
-    } else {
-      console.log(`Employee ${employeeId} is not connected`);
+      console.log(`[WS] Sent to employee ${employeeId}`);
     }
   }
 
-  // Broadcast to all admins and subadmins
   function broadcastToAdmins(message) {
-    clients.forEach((client, clientId) => {
-      if (
-        (client.role === 'admin' || client.role === 'subadmin') &&
-        client.ws.readyState === WebSocket.OPEN
-      ) {
+    let sent = 0;
+    clients.forEach((client) => {
+      if ((client.role === 'admin' || client.role === 'subadmin') && client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(JSON.stringify(message));
-        console.log(`Notification sent to ${client.role} ${clientId}`);
+        sent++;
       }
     });
+    console.log(`[WS] Broadcast to ${sent} admin(s)`);
   }
+
+  _notifyEmployee = notifyEmployee;
+  _broadcastToAdmins = broadcastToAdmins;
 
   return { wss, notifyEmployee, broadcastToAdmins };
 }
 
+// Singleton getters — import from anywhere without circular deps
 module.exports = setupWebSocket;
+module.exports.getNotifyEmployee = () => _notifyEmployee;
+module.exports.getBroadcastToAdmins = () => _broadcastToAdmins;
